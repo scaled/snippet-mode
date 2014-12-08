@@ -1,0 +1,8 @@
+   name: snippet-mode
+ source: git:https://github.com/scaled/snippet-mode.git
+version: 1.0
+descrip: Enables insertion of code snippets.
+ weburl: https://github.com/scaled/snippet-mode
+license: New BSD
+ jcopts: -source 1.8 -target 1.8 -Xlint:all
+# module: test
