@@ -1,0 +1,68 @@
+#
+# Snippets of Java code
+#
+# %line controls when the snippet is active:
+# blank - snippet active only on blank (all whitespace) lines (default)
+# eol - snippet active only at end of lines (no trailing non-whitespace)
+# inline - snippet expands anywhere inside a line
+#
+# %syns controls when the snippet is active. The syntax of the key string must be one of a (space
+# separated) list of syntaxes. Syntaxes are: `default`, `doc_comment`, `line_comment`, `string_lit`,
+# `char_lit`, `other_lit`. Additionally `comment` matches all comment syntaxes and `literal` matches
+# all literal syntaxes.
+
+# major modes in which these snippets are available (space separated list)
+%modes: java
+
+%name: class Foo {}
+%keys: cls class
+class ${1:Class} {
+$0
+}
+
+%name: Javadoc block
+%keys: /* doc
+/**
+ * ${1:documentation}
+ */
+
+%name: equals() method
+%keys: equals eq
+%syns: default
+@Override public boolean equals (Object other) {
+$0
+}
+
+%name: hashCode() method
+%keys: hc hash
+%syns: default
+@Override public int hashCode () {
+$0
+}
+
+%name: equals() and hashCode() methods
+%keys: eqhash eqhc
+%syns: default
+@Override public boolean equals (Object other) {
+$1
+}
+
+@Override public int hashCode () {
+$2
+}
+
+%name: if block
+%keys: if
+%syns: default
+if (${1:condition}) {
+$2
+}
+
+%name: if/else block
+%keys: ife ifel
+%syns: default
+if (${1:condition}) {
+$2
+} else {
+$3
+}
