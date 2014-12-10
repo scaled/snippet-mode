@@ -2,16 +2,7 @@
  * Styles for snippet-mode.
  */
 
-.holeFace {
-  -fx-bg-stroke: Gray !important;
-}
-
 .activeHoleFace {
-  -fx-fill: White !important;
   -fx-bg-fill: Blue !important;
-  -fx-bg-stroke: White !important;
-}
-
-.mirrorFace {
-  -fx-bg-stroke: Blue !important;
+  /*-fx-underline: true;*/
 }

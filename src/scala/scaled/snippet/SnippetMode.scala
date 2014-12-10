@@ -6,18 +6,12 @@ package scaled.snippet
 
 import scaled._
 import scaled.code.CodeMode
-import scaled.util.AnchorSet
+import scaled.util.{Anchor, Close}
 
 object SnippetConfig extends Config.Defs {
 
-  /** The CSS style applied to all holes other than the active hole. */
-  val holeStyle = "holeFace"
-
   /** The CSS style applied to the hole being currently edited. */
   val activeHoleStyle = "activeHoleFace"
-
-  /** The CSS style applied to all holes which mirror the active hole. */
-  val mirrorStyle = "mirrorFace"
 
   /** TEMP: Our built-in snippets converted into [[Snippet.Source]] objects. */
   val sources = resource(Seq("snippets/java.snip"))(Snippet.parseRsrc)
@@ -43,84 +37,155 @@ class SnippetMode (env :Env, major :MajorMode) extends MinorMode(env) {
     bb.sortBy(-_._2) // sort by longest to shortest trigger
   }
 
-  /** A snippet and the loc at which it was activated. */
+  /** An activated snippet plus a bunch of useful metadata. */
   class ActiveSnip (holes :Seq[Hole], initStart :Loc, initEnd :Loc) {
-    val anchors = new AnchorSet(buffer)
+    val anchors = new Anchor.Set(buffer)
 
-    // track the start and end of the entire snippet
-    val startA = anchors.add(initStart, true)
-    val endA = anchors.add(initEnd, false)
+    /** Tracks the start and end of the entire snippet. */
+    val region = Anchor.Region(anchors.add(initStart).bindLeft, anchors.add(initEnd))
 
-    // track the bounds of each hole and mirror in the snippet
-    class ActiveHole (hole :Hole) extends Region {
-      val startA = anchors.add(hole.loc, true)
-      def start = startA.loc
-      val endA = anchors.add(hole.loc + (0, hole.deflen), false)
-      def end = endA.loc
+    /** Tracks the bounds of each hole and mirror in the snippet, and other bits. */
+    class ActiveHole (hole :Hole) {
+      /** The region that bounds this hole, automatically adjusted for edits. */
+      val region = Anchor.Region(anchors.add(hole.loc), anchors.add(hole.loc + (0, hole.deflen)))
 
+      /** Anchor regions for all of this hole's mirrors (start, end). */
+      val amirrors = hole.mirrors.map(l => Anchor.Region(anchors.add(l), anchors.add(l)))
+
+      /** Tracks whether this hole still contains its default text. */
       var isDefault = (hole.deflen > 0)
 
+      /** Like [[Region.contains]] except that the loc *at* our end position is considered
+        * contained, which is not true for `Region.contains`. This is what we want when deciding
+        * whether or not the point is currently "in" this hole. */
+      def containsP (loc :Loc) = (region.start <= loc) && (region.end >= loc)
+
+      def init () {
+        // if we have a default value and mirrors, stuff our default value into our mirrors
+        if (isDefault && !amirrors.isEmpty) {
+          amirrors foreach { _.bindOut }
+          updateMirrors()
+          amirrors foreach { _.bindIn }
+        }
+      }
+
       def activate () {
-        buffer.addTag(activeHoleStyle, this)
-        view.point() = if (isDefault) start else end
+        // while we're active, our regions bind out (they expand due to edits on their edges)
+        region.bindOut
+        buffer.addTag(activeHoleStyle, region)
+        amirrors foreach { _.bindOut }
+        amirrors foreach { buffer.addTag(activeHoleStyle, _) }
+        moveTo()
       }
       def deactivate () {
-        buffer.removeTag(activeHoleStyle, this)
+        // while we're inactive, our regions bind in (no expand due to edits on edges)
+        region.bindIn
+        amirrors foreach { _.bindIn }
+        buffer.removeTag(activeHoleStyle, region)
+        amirrors foreach { buffer.removeTag(activeHoleStyle, _) }
       }
-      // TODO: mirrors
 
-      override def toString = s"H:[$start, $end):$isDefault"
+      def moveTo () {
+        if (!containsP(view.point())) {
+          view.point() = if (isDefault) region.start else region.end
+          // if we're in column zero, automatically indent
+          if (view.point().col == 0) afterEdit { ifCode(_.reindentAtPoint()) }
+        }
+      }
+
+      def updateMirrors () {
+        val current = buffer.region(region)
+        disableOnEdit = true
+        try amirrors foreach { mr => buffer.replace(mr, current) }
+        finally disableOnEdit = false
+      }
+
+      override def toString = s"H:$region:$isDefault"
     }
     val aholes = holes map { new ActiveHole(_) }
 
-    val activeHole = OptValue[ActiveHole]()
-    activeHole onChange { (nh, oh) =>
-      oh foreach { _.deactivate() }
-      nh foreach { _.activate() }
+    private[this] var ahole :ActiveHole = null
+    def activeHole = ahole
+    def activeHole_= (hole :ActiveHole) = if (hole != ahole) {
+      if (ahole != null) ahole.deactivate()
+      ahole = hole
+      if (hole != null) hole.activate()
     }
 
-    def activate () {
-      // println(s"activating $this")
-      // TODO: reindent(start)?
-      activeHole() = aholes.head
-      _conn = buffer.edited onValue onEdit
-    }
+    // used to disable our buffer listener when we're updating mirrors or doing other buffer
+    // changes to which we don't want to react
+    private var disableOnEdit = false
 
-    def deactivate () {
-      // println(s"deactivating $this")
-      _conn.close()
-      activeHole.clear()
-    }
+    // set ourselves as the active snippet
+    // println(s"activating $this")
+    activeSnip = this
 
-    def nextHole () {
-      val hidx = aholes.indexOf(activeHole())
-      if (hidx < aholes.size-2) activeHole() = aholes(hidx+1)
-      // if we're on the penultimate hole, then the next hole is the exit and deactivates us
-      else {
-        activeSnip.clear()
-        view.point() = aholes(hidx+1).start
-        ifCode(_.reindentAtPoint()) // TODO: is this always a good idea?
+    // fill in the mirrors for all holes with defval+mirrors
+    aholes foreach { _.init() }
+
+    // indent our inserted snippet lines
+    ifCode { code =>
+      // TODO: reindent starting line?
+      var loc = region.start.nextStart ; val end = region.end ; while (loc < end) {
+        if (buffer.line(loc).length > 0) code.reindent(loc)
+        loc = loc.nextStart
       }
     }
 
-    def prevHole () {
-      val hidx = aholes.indexOf(activeHole())
-      if (hidx > 0) activeHole() = aholes(hidx-1)
+    // wire up our buffer listeners and advance to the first hole
+    val toClose = Close.bag()
+    toClose += buffer.edited onValue onEdit
+    toClose += view.point onValue checkSwitchHole
+    activateHole(0) // this will deactivate this snippet if hole 0 is the exit hole
+
+    def deactivate () {
+      // println(s"deactivating $this")
+      toClose.close()
+      activeHole = null
     }
 
-    private var _conn :Connection = _
-    private def onEdit (edit :Buffer.Edit) = edit match {
-      case Buffer.Insert(estart, eend) =>
-        val ah = activeHole()
-        // println(s"onInsert($estart, $eend) <- $ah")
+    def nextHole () :Unit = {
+      // if the point is before the currently active hole, just move to the active hole
+      val ah = activeHole
+      if (view.point() < ah.region.start) ah.moveTo()
+      else activateHole(aholes.indexOf(activeHole)+1)
+    }
+
+    def prevHole () {
+      val hidx = aholes.indexOf(activeHole)
+      if (hidx > 0) activeHole = aholes(hidx-1)
+    }
+
+    private def activateHole (hidx :Int) {
+      if (hidx < aholes.size-1) activeHole = aholes(hidx)
+      // if we're on the penultimate hole, then the next hole is the exit and deactivates us
+      else {
+        deactivateSnippet()
+        view.point() = aholes(hidx).region.end
+        // if the end is inside the snippet, indent
+        if (view.point() < region.end) ifCode { _.reindentAtPoint() }
+      }
+    }
+
+    // if the point moves outside the active hole, look to see if it moved into another hole, and
+    // if so, make that hole active; NOTE: we also don't do this check if listening is disabled
+    private def checkSwitchHole (loc :Loc) :Unit = if (!activeHole.containsP(loc)) afterEdit {
+      if (activeSnip == this) { // make sure we don't come in too late... blah
+        val hidx = aholes.indexWhere(_.containsP(loc))
+        if (hidx >= 0) activateHole(hidx)
+      }
+    }
+
+    // ignore edits if we're currently twiddling the buffer programmatically
+    private def onEdit (edit :Buffer.Edit) = if (!disableOnEdit) edit match {
+      case Buffer.Insert(istart, iend) =>
         // if they edit outside the bounds of the active hole, deactivate the snippet; they
         // better be done because we can't be keeping track of all that craziness
-        if (!ah.contains(estart)) activeSnip.clear()
+        val ah = activeHole
+        if (!ah.containsP(istart)) deactivateSnippet()
         else {
-          // retag the (now larger) active hole with its style; if we just tag the newly inserted
-          // segment, we get pesky outlines because tag spans are not merged automatically
-          buffer.removeTag(activeHoleStyle, ah)
-          buffer.addTag(activeHoleStyle, ah)
+          // tag the insert with the active hole style
+          buffer.addTag(activeHoleStyle, istart, iend)
 
           // if this hole currently contains its default value, queue it up to be cleared (we
           // can't clear it immediately because we're processing a buffer edit right now)
@@ -130,40 +195,50 @@ class SnippetMode (env :Env, major :MajorMode) extends MinorMode(env) {
             ah.isDefault = false
             // do our replacement in the didInvoke hook so that its combined with the current edit
             // for undo purposes; we can't do it now because we're dispatching an edit
-            (disp.didInvoke onEmit { buffer.replace(ah, buffer.region(estart, eend)) }).once()
+            afterEdit {
+              // delete any default text from the end of the insert onward
+              if (iend != ah.region.end) {
+                disableOnEdit = true
+                try buffer.delete(iend, ah.region.end)
+                finally disableOnEdit = false
+              }
+              activeHole.updateMirrors()
+            }
           }
-          // TODO: update active hole mirrors
+          // otherwise, update our mirrors after this edit commits
+          else afterEdit { ah.updateMirrors() }
         }
 
-      case Buffer.Delete(estart, eend, deleted) =>
-        val ah = activeHole()
-        // println(s"onDelete($estart, $eend) (${deleted.map(_.tags)}) <- $ah")
-        // if they deleted any text that is not marked with active hole face, then they deleted
-        // something outside the active hole, so we assume they're done with this snippet
-        def notActive (line :LineV) = !line.tagsAt(0).exists(
-          t => t.tag == activeHoleStyle && t.start == 0 && t.end == line.length)
-        if (deleted.exists(notActive)) activeSnip.clear()
-        // TODO: else { update active hole mirrors }
+      case Buffer.Delete(dstart, dend, deleted) =>
+        // if this delete is not inside a current hole, then deactivate
+        if (!aholes.exists(_.containsP(dstart))) deactivateSnippet()
+        // otherwise, update our mirrors after this edit commits
+        else afterEdit { activeHole.updateMirrors() }
 
       case _ => // don't care about transforms
     }
 
-    override def toString = s"Snip [${startA.loc}:${endA.loc}) $aholes"
+    override def toString = s"Snip:$region:$aholes"
+  }
+
+  // invokes `action` after the current fn is finished dispatching; this is often necessary when we
+  // want to change the buffer but we're reacting to a buffer change (it's not legal to change the
+  // buffer during that time); using disp.didInvoke means our changes are bundled up with whatever
+  // changes were part of the executing fn, which is generally what we want for sensible undo
+  private def afterEdit[U] (action : =>U) :Unit = {
+    if (disp.curFn != null) (disp.didInvoke onEmit { action }).once()
+    else env.exec.runOnUI(action)
   }
 
   /** The currently active snippet, if any. */
-  val activeSnip = OptValue[ActiveSnip]()
-  def reqActiveSnip = activeSnip getOrElse abort("No active snippet.")
-  activeSnip onChange { (ns, os) =>
-    os foreach { _.deactivate() }
-    ns foreach { _.activate() }
-  }
+  var activeSnip :ActiveSnip = _
+  def reqActiveSnip = if (activeSnip == null) abort("No active snippet.") else activeSnip
 
   @Fn("""If there is no active snippet, attemps to expand the snippet at the point.
          If there is an active snippet, advances to the next hole in the snippet.""")
-  def expandOrNextSnippet () :Boolean = activeSnip.getOption match {
-    case None       => expandSnippet()
-    case Some(snip) => snip.nextHole() ; true
+  def expandOrNextSnippet () :Boolean = activeSnip match {
+    case null => expandSnippet()
+    case snip => snip.nextHole() ; true
   }
 
   @Fn("Expands the snippet at the point, if any.")
@@ -174,10 +249,7 @@ class SnippetMode (env :Env, major :MajorMode) extends MinorMode(env) {
     val iter = snipsTrigs.iterator() ; while (iter.hasNext) {
       val (trig, tlen, snip) = iter.next()
       if ((tlen <= col) && line.matches(trig, col-tlen)) {
-        val start = p.atCol(p.col-tlen)
-        buffer.delete(start, p) // delete the trigger
-        val (holes, end) = snip.insert(buffer, start, computeIndent) // insert the snippet
-        activeSnip() = new ActiveSnip(holes, start, end) // and start the heavy machinery
+        startSnippet(snip, p.atCol(p.col-tlen), p)
         return true
       }
     }
@@ -193,7 +265,17 @@ class SnippetMode (env :Env, major :MajorMode) extends MinorMode(env) {
   def prevSnippet () :Unit = reqActiveSnip.prevHole()
 
   @Fn("""Deactivates the active snippet.""")
-  def deactivateSnippet () :Unit = activeSnip.clear()
+  def deactivateSnippet () :Unit = if (activeSnip != null) {
+    activeSnip.deactivate()
+    activeSnip = null
+  }
+
+  private def startSnippet (snip :Snippet, start :Loc, pos :Loc) {
+    deactivateSnippet()                           // deactivate any previous snippet
+    buffer.delete(start, pos)                     // delete the trigger
+    val (holes, end) = snip.insert(buffer, start) // insert the snippet text
+    new ActiveSnip(holes, start, end)             // and start the heavy machinery
+  }
 
   private val computeIndent = major match {
     case code :CodeMode => (row :Int) => " " * code.computeIndent(row)

@@ -27,16 +27,14 @@ case class Snippet (
   /** Inserts this snippet into `buffer` at `loc`. Returns the list of holes in the inserted
     * snippet. The final hole will be the "exit" point of the snippet (indicated by `$0` in the raw
     * template).
-    * @param ifn a fn to compute the indent prefix for a row.
     */
-  def insert (buffer :Buffer, loc :Loc, ifn :Int => String) :(Seq[Hole], Loc) = {
+  def insert (buffer :Buffer, loc :Loc) :(Seq[Hole], Loc) = {
     // we delay parsing until insertion because it's not that bad to parse one snippet just before
     // we insert it, but parsing hundreds of snippets at startup would be troublesome
     val holes = Seq.builder[(Int,Int,Loc)]()
     var end = loc ; var exit = Loc.None
     val iter = template.iterator() ; while (iter.hasNext) {
-      val indent = if (end > loc) ifn(end.row) else "" // no indent on first line
-      val text = indent + iter.next
+      val text = iter.next
       val m = Snippet.HolePat.matcher(text) ; var pos = 0
       var lb :Line.Builder = null
       while (m.find(pos)) {
