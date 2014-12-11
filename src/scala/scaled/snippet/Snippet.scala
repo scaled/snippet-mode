@@ -7,7 +7,6 @@ package scaled.snippet
 import java.lang.{StringBuffer => JStringBuilder}
 import java.util.regex.{Pattern, Matcher}
 import scaled._
-import scaled.util.Resource
 
 /** Tags a primary hole in a snippet. */
 case class Hole (loc :Loc, deflen :Int, mirrors :Seq[Loc])
@@ -82,42 +81,38 @@ case class Snippet (
 object Snippet {
 
   /** Contains the data from a `.snip` file. */
-  case class Source (modes :Set[String], snippets :Seq[Snippet])
+  case class Source (name :String, includes :Set[String], snippets :Seq[Snippet])
 
-  private val ModesKey = "%modes:"
+  private val IncludeKey = "%include:"
   private val NameKey  = "%name:"
   private val KeysKey  = "%keys:"
   private val SynsKey  = "%syns:"
   private val AllSyntaxes = (_ :Syntax) => true
 
-  /** A fn which parses a set of .snip files packaged into a resource. */
-  val parseRsrc = (rsrc :Resource) => rsrc.lines.map(parseSource)
+  // example .snip file
+  // %include: c-like java-like
+  // %name: if else block
+  // %keys: ife ifel
+  // %syns: default
+  // if (${1:condition}) $2 else $3
+  // (optional blank line)
+  // %name: ...
 
-  /** Parses `lines`, which ostensibly represent the contents of a `.snip` file. That looks
-    * something like:
-    * ```
-    * %modes: java scala
-    * %name: if else block
-    * %keys: ife ifel
-    * %syns: default
-    * if (${1:condition}) $2 else $3
-    * (optional blank line)
-    * %name: ...
-    * ```
+  /** Parses `lines`, which ostensibly represent the contents of a `.snip` file.
+    * @return the set of includes specified in the file, if any.
     */
-  def parseSource (lines :Iterable[String]) :Source = {
-    val snips = Seq.builder[Snippet]()
-    val modes = Set.builder[String]()
+  def parse (lines :Iterable[String], into :Seq.Builder[Snippet]) :Set[String] = {
+    val includes = Set.builder[String]()
     var ll = lines.toList ; while (!ll.isEmpty) {
       val tline = ll.head
-      if (tline startsWith NameKey) ll = parseSnippet(ll, snips += _)
+      if (tline startsWith NameKey) ll = parseSnippet(ll, into += _)
       else {
-        if (tline startsWith ModesKey) modes ++= getval(tline, ModesKey).split(" ")
+        if (tline startsWith IncludeKey) includes ++= getval(tline, IncludeKey).split(" ")
         else if ({ val tt = tline.trim ; (tt startsWith "#") || (tt.length == 0)}) () // skip
         ll = ll.tail
       }
     }
-    Source(modes.build(), snips.build())
+    includes.build()
   }
 
   private def getval (line :String, key :String) = line.substring(key.length).trim

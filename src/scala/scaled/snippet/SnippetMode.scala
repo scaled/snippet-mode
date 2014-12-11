@@ -4,6 +4,7 @@
 
 package scaled.snippet
 
+import java.util.HashSet
 import scaled._
 import scaled.code.CodeMode
 import scaled.util.{Anchor, Close}
@@ -12,15 +13,13 @@ object SnippetConfig extends Config.Defs {
 
   /** The CSS style applied to the hole being currently edited. */
   val activeHoleStyle = "activeHoleFace"
-
-  /** TEMP: Our built-in snippets converted into [[Snippet.Source]] objects. */
-  val sources = resource(Seq("snippets/java.snip"))(Snippet.parseRsrc)
 }
 
 @Minor(name="snippet", tags=Array("text", "code"),
        desc="""Provides support for insertion and population of text/code snippets.""")
 class SnippetMode (env :Env, major :MajorMode) extends MinorMode(env) {
   import SnippetConfig._
+  private val snipsvc = env.msvc.service[SnippetService]
 
   override def configDefs = SnippetConfig :: super.configDefs
   override def stylesheets = stylesheetURL("/snippet.css") :: super.stylesheets
@@ -29,12 +28,16 @@ class SnippetMode (env :Env, major :MajorMode) extends MinorMode(env) {
     bind("expand-or-next-snippet", "TAB").
     bind("prev-snippet", "S-TAB");
 
-  // TODO: marge snippets from all sources, more complex stuff, etc. etc.
-  val snipsTrigs = {
-    val bb = Seq.builder[(Matcher,Int,Snippet)]()
-    for (src <- sources.get ; if (src.modes(major.name)) ; snip <- src.snippets ;
-         trig <- snip.triggers) bb += (Matcher.exact(trig), trig.length, snip)
-    bb.sortBy(-_._2) // sort by longest to shortest trigger
+  case class Trigger (m :Matcher, len :Int, snip :Snippet)
+  lazy val trigs :Seq[Trigger] = {
+    val bb = Seq.builder[Trigger]()
+    val seenTrigs = new HashSet[String]()
+    for (snip <- snipsvc.resolveSnippets(env.configScope, major.name) ; trig <- snip.triggers) {
+      // if we've already seen a trigger, don't add it when we see it again later; our snippet
+      // sources are returned in order of precedence, so we want the first one we see
+      if (seenTrigs.add(trig)) bb += Trigger(Matcher.exact(trig), trig.length, snip)
+    }
+    bb.sortBy(-_.len) // sort by longest to shortest trigger
   }
 
   /** An activated snippet plus a bunch of useful metadata. */
@@ -119,10 +122,8 @@ class SnippetMode (env :Env, major :MajorMode) extends MinorMode(env) {
     // set ourselves as the active snippet
     // println(s"activating $this")
     activeSnip = this
-
     // fill in the mirrors for all holes with defval+mirrors
     aholes foreach { _.init() }
-
     // indent our inserted snippet lines
     ifCode { code =>
       // TODO: reindent starting line?
@@ -243,13 +244,13 @@ class SnippetMode (env :Env, major :MajorMode) extends MinorMode(env) {
 
   @Fn("Expands the snippet at the point, if any.")
   def expandSnippet () :Boolean = {
-    // TODO: make this more efficient (build trie from reversed trigger strings, match backward
-    // char by char)
+    // TODO: make this more efficient?
+    // (build trie from reversed trigger strings, match backward char by char)
     val p = view.point() ; val col = p.col ; val line = buffer.line(p)
-    val iter = snipsTrigs.iterator() ; while (iter.hasNext) {
-      val (trig, tlen, snip) = iter.next()
-      if ((tlen <= col) && line.matches(trig, col-tlen)) {
-        startSnippet(snip, p.atCol(p.col-tlen), p)
+    val iter = trigs.iterator() ; while (iter.hasNext) {
+      val t = iter.next() ; val tlen = t.len
+      if ((tlen <= col) && line.matches(t.m, col-tlen)) {
+        startSnippet(t.snip, p.atCol(p.col-tlen), p)
         return true
       }
     }
