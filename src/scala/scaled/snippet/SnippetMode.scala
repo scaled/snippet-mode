@@ -29,16 +29,16 @@ class SnippetMode (env :Env, major :MajorMode) extends MinorMode(env) {
     bind("expand-or-next-snippet", "TAB").
     bind("prev-snippet", "S-TAB");
 
-  case class Trigger (m :Matcher, len :Int, snip :Snippet)
+  case class Trigger (m :Matcher, trig :String, snip :Snippet)
   lazy val trigs :Seq[Trigger] = {
     val bb = Seq.builder[Trigger]()
     val seenTrigs = new HashSet[String]()
     for (snip <- snipsvc.resolveSnippets(major.name, env.configScope) ; trig <- snip.triggers) {
       // if we've already seen a trigger, don't add it when we see it again later; our snippet
       // sources are returned in order of precedence, so we want the first one we see
-      if (seenTrigs.add(trig)) bb += Trigger(Matcher.exact(trig), trig.length, snip)
+      if (seenTrigs.add(trig)) bb += Trigger(Matcher.exact(trig), trig, snip)
     }
-    bb.sortBy(-_.len) // sort by longest to shortest trigger
+    bb.sortBy(-_.trig.length) // sort by longest to shortest trigger
   }
 
   /** An activated snippet plus a bunch of useful metadata. */
@@ -249,7 +249,7 @@ class SnippetMode (env :Env, major :MajorMode) extends MinorMode(env) {
     // (build trie from reversed trigger strings, match backward char by char)
     val p = view.point() ; val col = p.col ; val line = buffer.line(p)
     val iter = trigs.iterator() ; while (iter.hasNext) {
-      val t = iter.next() ; val tlen = t.len
+      val t = iter.next() ; val tlen = t.trig.length
       if ((tlen <= col) && line.matches(t.m, col-tlen)) {
         startSnippet(t.snip, p.atCol(p.col-tlen), p)
         return true
@@ -290,6 +290,18 @@ class SnippetMode (env :Env, major :MajorMode) extends MinorMode(env) {
     }
   }
 
+  @Fn("Displays the template and other info for a particular snippet.")
+  def describeSnippet () {
+    val comp = Completer.from(trigs)(_.trig)
+    window.mini.read("Trigger:", "", snippetTriggerHistory, comp) onSuccess { trig =>
+      val snip = trig.snip
+      val info = Seq(s"Name: ${snip.name}",
+                     s"Triggers: ${snip.triggers.mkString(" ")}") ++ snip.template
+      // TODO: syntaxes, line constraints
+      view.popup() = Popup.text(info, Popup.UpRight(view.point()))
+    }
+  }
+
   private def startSnippet (snip :Snippet, start :Loc, pos :Loc) {
     deactivateSnippet()                           // deactivate any previous snippet
     buffer.delete(start, pos)                     // delete the trigger
@@ -315,4 +327,5 @@ class SnippetMode (env :Env, major :MajorMode) extends MinorMode(env) {
   import Workspace._
   private def configScopeHistory = historyRing(wspace, "config-scope")
   private def snippetNameHistory = historyRing(wspace, "snippet-name")
+  private def snippetTriggerHistory = historyRing(wspace, "snippet-trigger")
 }
