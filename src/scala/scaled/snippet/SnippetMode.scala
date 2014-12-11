@@ -4,6 +4,7 @@
 
 package scaled.snippet
 
+import java.nio.file.Files
 import java.util.HashSet
 import scaled._
 import scaled.code.CodeMode
@@ -16,7 +17,7 @@ object SnippetConfig extends Config.Defs {
 }
 
 @Minor(name="snippet", tags=Array("text", "code"),
-       desc="""Provides support for insertion and population of text/code snippets.""")
+       desc="Provides support for insertion and population of text/code snippets.")
 class SnippetMode (env :Env, major :MajorMode) extends MinorMode(env) {
   import SnippetConfig._
   private val snipsvc = env.msvc.service[SnippetService]
@@ -271,6 +272,24 @@ class SnippetMode (env :Env, major :MajorMode) extends MinorMode(env) {
     activeSnip = null
   }
 
+  @Fn("Visits a snippets definition file.")
+  def editSnippets () {
+    window.mini.read("Mode:", major.name, snippetNameHistory, Completer.none) onSuccess { name =>
+      val scopes = env.configScope.toList ; val comp = Completer.from(scopes)(_.name)
+      window.mini.read("Scope:", scopes.head.name, configScopeHistory, comp) onSuccess { scope =>
+        val file = scope.root.resolve("Snippets").resolve(s"$name.snip")
+        val view = frame.visit(wspace.openBuffer(Store(file)))
+        // if this snippets file doesn't exist, insert some boilerplate
+        if (!Files.exists(file)) view.buffer.append(
+          Seq(s"# $name snippets",
+              "#",
+              "# Use M-x insert-stock-snippets to populate this buffer with defaults.",
+              "# Use M-x describe-mode to read more about the .snip format.",
+              "", "").map(Line.apply))
+      }
+    }
+  }
+
   private def startSnippet (snip :Snippet, start :Loc, pos :Loc) {
     deactivateSnippet()                           // deactivate any previous snippet
     buffer.delete(start, pos)                     // delete the trigger
@@ -292,4 +311,8 @@ class SnippetMode (env :Env, major :MajorMode) extends MinorMode(env) {
     case 0 => loc.atCol(loc.col + snipLoc.col)
     case n => Loc(loc.row + snipLoc.row, snipLoc.col)
   }
+
+  import Workspace._
+  private def configScopeHistory = historyRing(wspace, "config-scope")
+  private def snippetNameHistory = historyRing(wspace, "snippet-name")
 }
