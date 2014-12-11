@@ -1,22 +1,8 @@
-#
-# Snippets of Java code
-#
-# %line controls when the snippet is active:
-# blank - snippet active only on blank (all whitespace) lines (default)
-# eol - snippet active only at end of lines (no trailing non-whitespace)
-# inline - snippet expands anywhere inside a line
-#
-# %syns controls when the snippet is active. The syntax of the key string must be one of a (space
-# separated) list of syntaxes. Syntaxes are: `default`, `doc_comment`, `line_comment`, `string_lit`,
-# `char_lit`, `other_lit`. Additionally `comment` matches all comment syntaxes and `literal` matches
-# all literal syntaxes.
-
-# major modes in which these snippets are available (space separated list)
-%modes: java
+# Default Java snippets ; reformat to taste
 
 %name: class Foo {}
-%keys: cls class
-class ${1:Class} {
+%keys: cls
+public class ${1:Name} {
 $0
 }
 
@@ -27,27 +13,27 @@ $0
  */
 
 %name: equals() method
-%keys: equals eq
+%keys: eq
 %syns: default
-@Override public boolean equals (Object other) {
+@Override public boolean equals(Object other) {
 $0
 }
 
 %name: hashCode() method
-%keys: hc hash
+%keys: hc
 %syns: default
-@Override public int hashCode () {
+@Override public int hashCode() {
 $0
 }
 
 %name: equals() and hashCode() methods
-%keys: eqhash eqhc
+%keys: eqhc
 %syns: default
-@Override public boolean equals (Object other) {
+@Override public boolean equals(Object other) {
 $1
 }
 
-@Override public int hashCode () {
+@Override public int hashCode() {
 $0
 }
 
