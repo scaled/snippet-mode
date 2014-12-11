@@ -17,7 +17,7 @@ class SnippetManager (msvc :MetaService, editor :Editor)
   override def didStartup () {}
   override def willShutdown () {}
 
-  override def resolveSnippets (scope :Config.Scope, mode :String) = {
+  override def resolveSnippets (mode :String, scope :Config.Scope) = {
     val snips = Seq.builder[Snippet]()
     // first look through all the config directories, adding any snippets from there
     scope.toList.map(_.root.resolve("Snippets")) foreach { dir =>
@@ -27,6 +27,10 @@ class SnippetManager (msvc :MetaService, editor :Editor)
     // TODO: add snips from any registered "snippet database" directories
 
     snips.build()
+  }
+
+  override def flushSnippets (mode :String, path :Path) {
+    userSnipCache.invalidate((mode, path))
   }
 
   private def readDirSnips (mode :String, dir :Path) = readSnips(mode) { name =>

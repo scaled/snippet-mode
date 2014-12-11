@@ -33,7 +33,7 @@ class SnippetMode (env :Env, major :MajorMode) extends MinorMode(env) {
   lazy val trigs :Seq[Trigger] = {
     val bb = Seq.builder[Trigger]()
     val seenTrigs = new HashSet[String]()
-    for (snip <- snipsvc.resolveSnippets(env.configScope, major.name) ; trig <- snip.triggers) {
+    for (snip <- snipsvc.resolveSnippets(major.name, env.configScope) ; trig <- snip.triggers) {
       // if we've already seen a trigger, don't add it when we see it again later; our snippet
       // sources are returned in order of precedence, so we want the first one we see
       if (seenTrigs.add(trig)) bb += Trigger(Matcher.exact(trig), trig.length, snip)

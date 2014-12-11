@@ -4,6 +4,7 @@
 
 package scaled.snippet
 
+import java.nio.file.Path
 import scaled._
 
 /** Provides access to the database of snippets to snippet modes. */
@@ -13,5 +14,8 @@ trait SnippetService {
   /** Returns all snippets that are applicable to `mode`, from highest to lowest precedence.
     * @param scope the config scope for the buffer using snippets.
     */
-  def resolveSnippets (scope :Config.Scope, mode :String) :Seq[Snippet]
+  def resolveSnippets (mode :String, scope :Config.Scope) :Seq[Snippet]
+
+  /** Flushes cached snippets for the specified `mode` in the specified config root. */
+  def flushSnippets (mode :String, path :Path) :Unit
 }

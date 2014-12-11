@@ -32,10 +32,7 @@ object SnipConfig extends Config.Defs {
   val grammars = resource("Snip.ndf")(Grammar.parseNDFs)
 }
 
-@Major(name="snip",
-       tags=Array("code", "project", "snip"),
-       pats=Array(".*\\.snip"),
-       desc="""
+@Major(name="snip", tags=Array("code", "project", "snip"), pats=Array(".*\\.snip"), desc="""
 A major mode for editing Snippet (.snip) files.
 
 A .snip file consists of an optional %include directive, followed by one or more snippet
@@ -124,6 +121,14 @@ class SnipMode (env :Env) extends GrammarCodeMode(env) {
   override val commenter = new Commenter() {
     override def linePrefix = "#"
   }
+
+  // when the buffer is saved, flush any cached snippets which we may have just edited
+  note(buffer.storeV onValue { _.file foreach { path =>
+    // path is root/Snippets/mode.snip; use that to get what we need
+    val root = path.getParent.getParent
+    val mode = path.getFileName.toString.dropRight(5)
+    env.msvc.service[SnippetService].flushSnippets(mode, root)
+  }})
 
   @Fn("Inserts the stock snippets for the mode whose snippets are being edited.")
   def insertStockSnippets () {
