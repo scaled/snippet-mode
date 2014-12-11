@@ -56,7 +56,10 @@ case class Snippet (
         pos = m.end
       }
       val line = if (lb == null) Line(text) else lb.append(text.substring(pos)).build()
-      end = buffer.insertLine(end, line)
+      end = buffer.insert(end, line)
+      // if this is the last line and the exit is at the end of this line, then don't insert a
+      // final line break; otherwise do
+      if (iter.hasNext || exit != end) end = buffer.split(end)
     }
 
     // if there was no $0, put one at the end of the snippet
