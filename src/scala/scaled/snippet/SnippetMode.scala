@@ -195,8 +195,8 @@ class SnippetMode (env :Env, major :MajorMode) extends MinorMode(env) {
             // replace the whole hole region with this insertion; that will remove the default and
             // replace it with just what was inserted
             ah.isDefault = false
-            // do our replacement in the didInvoke hook so that its combined with the current edit
-            // for undo purposes; we can't do it now because we're dispatching an edit
+            // trim the default text in the didInvoke hook so that its combined with the current
+            // edit for undo purposes; we can't do it now because we're dispatching an edit
             afterEdit {
               // delete any default text from the end of the insert onward
               if (iend != ah.region.end) {
@@ -215,7 +215,10 @@ class SnippetMode (env :Env, major :MajorMode) extends MinorMode(env) {
         // if this delete is not inside a current hole, then deactivate
         if (!aholes.exists(_.containsP(dstart))) deactivateSnippet()
         // otherwise, update our mirrors after this edit commits
-        else afterEdit { activeHole.updateMirrors() }
+        else afterEdit { activeHole match {
+          case null => println("Urk, post-delete-mirror update too late")
+          case hole => hole.updateMirrors()
+        }}
 
       case _ => // don't care about transforms
     }
