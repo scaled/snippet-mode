@@ -17,5 +17,5 @@ trait SnippetService {
   def resolveSnippets (mode :String, scope :Config.Scope) :Seq[Snippet]
 
   /** Flushes cached snippets for the specified `mode` in the specified config root. */
-  def flushSnippets (mode :String, path :Path) :Unit
+  def flushSnippets (mode :String, root :Path) :Unit
 }

@@ -13,6 +13,7 @@ class SnippetManager (msvc :MetaService, editor :Editor)
     extends AbstractService with SnippetService {
 
   private val userSnipCache = Mutable.cacheMap[(String,Path),Seq[Snippet]]((readDirSnips _).tupled)
+  private val SnippetsDir = "Snippets"
 
   override def didStartup () {}
   override def willShutdown () {}
@@ -20,7 +21,7 @@ class SnippetManager (msvc :MetaService, editor :Editor)
   override def resolveSnippets (mode :String, scope :Config.Scope) = {
     val snips = Seq.builder[Snippet]()
     // first look through all the config directories, adding any snippets from there
-    scope.toList.map(_.root.resolve("Snippets")) foreach { dir =>
+    scope.toList.map(_.root.resolve(SnippetsDir)) foreach { dir =>
       snips ++= userSnipCache.get((mode, dir))
     }
 
@@ -29,8 +30,8 @@ class SnippetManager (msvc :MetaService, editor :Editor)
     snips.build()
   }
 
-  override def flushSnippets (mode :String, path :Path) {
-    userSnipCache.invalidate((mode, path))
+  override def flushSnippets (mode :String, root :Path) {
+    userSnipCache.invalidate((mode, root.resolve(SnippetsDir)))
   }
 
   private def readDirSnips (mode :String, dir :Path) = readSnips(mode) { name =>
