@@ -98,16 +98,12 @@ object Snippet {
     def canActivate (line :LineV, start :Int, pos :Int) :Boolean
   }
   case object Alone extends LineMode {
-    override def canActivate (line :LineV, start :Int, pos :Int) = {
-      println(s"Alone $start - $pos :: $line")
+    override def canActivate (line :LineV, start :Int, pos :Int) =
       line.indexOf(Chars.isNotWhitespace) == start && EOL.canActivate(line, start, pos)
-    }
   }
   case object EOL extends LineMode {
-    override def canActivate (line :LineV, start :Int, pos :Int) = {
-      println(s"EOL $start - $pos :: $line")
+    override def canActivate (line :LineV, start :Int, pos :Int) =
       line.indexOf(Chars.isNotWhitespace, pos) == -1
-    }
   }
   case object Inline extends LineMode {
     override def canActivate (line :LineV, start :Int, pos :Int) = true
