@@ -74,11 +74,11 @@ The default when no %syns directive is present is to match any syntax.
 
 %line restricts snippets from activating unless the line at the point meets certain criteria:
 ```
-`blank`  - indicates that the line must contain nothing except whitespace
-`eol`    - only activates a snippet if the point is at the end of the line
-`inline` - indicates that the snippet can be expanded anywhere in line
+`eol`    - only activates if the snippet key is the last thing on a line
+`alone`  - only activates if the snippet key is the only thing on the line
+`inline` - activates regardless of where the snippet key appears
 ```
-`blank` is the default and is used if no %line directive is present.
+`alone` is the default and is used if no %line directive is present.
 
 After the directives comes the snippet template. This is the exact text inserted for the snippet
 with "holes" which will be filled in by the user at snippet instantiation time. There are four

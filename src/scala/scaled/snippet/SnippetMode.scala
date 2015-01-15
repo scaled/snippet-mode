@@ -250,11 +250,11 @@ class SnippetMode (env :Env, major :MajorMode) extends MinorMode(env) {
   def expandSnippet () :Boolean = {
     // TODO: make this more efficient?
     // (build trie from reversed trigger strings, match backward char by char)
-    val p = view.point() ; val col = p.col ; val line = buffer.line(p)
+    val p = view.point() ; val pcol = p.col ; val line = buffer.line(p)
     val iter = trigs.iterator() ; while (iter.hasNext) {
-      val t = iter.next() ; val tlen = t.trig.length
-      if ((tlen <= col) && line.matches(t.m, col-tlen)) {
-        startSnippet(t.snip, p.atCol(p.col-tlen), p)
+      val t = iter.next() ; val tlen = t.trig.length ; val tcol = pcol-tlen
+      if ((tlen <= pcol) && line.matches(t.m, tcol) && t.snip.canActivate(line, tcol, pcol)) {
+        startSnippet(t.snip, p.atCol(tcol), p)
         return true
       }
     }

@@ -7,6 +7,7 @@ package scaled.snippet
 import java.lang.{StringBuffer => JStringBuilder}
 import java.util.regex.{Pattern, Matcher}
 import scaled._
+import scaled.util.Chars
 
 /** Tags a primary hole in a snippet. */
 case class Hole (loc :Loc, deflen :Int, mirrors :Seq[Loc])
@@ -20,8 +21,14 @@ case class Snippet (
   triggers :Set[String],
   /** The syntax predicate for this snippet. */
   syntaxes :Syntax => Boolean,
+  /** The activation line constraints. */
+  lmode :Snippet.LineMode,
   /** The raw template for this snippet. */
   template :Seq[String]) {
+
+  /** Returns true if this snippet can be activated on `line` where the trigger matched at column
+    * `start` and the point is at `pos`. */
+  def canActivate (line :LineV, start :Int, pos :Int) :Boolean = lmode.canActivate(line, start, pos)
 
   /** Inserts this snippet into `buffer` at `loc`. Returns the list of holes in the inserted
     * snippet. The final hole will be the "exit" point of the snippet (indicated by `$0` in the raw
@@ -86,10 +93,31 @@ object Snippet {
   /** Contains the data from a `.snip` file. */
   case class Source (name :String, includes :Set[String], snippets :Seq[Snippet])
 
+  /** Models line-related restrictions on when a snippet can be activated. */
+  sealed trait LineMode {
+    def canActivate (line :LineV, start :Int, pos :Int) :Boolean
+  }
+  case object Alone extends LineMode {
+    override def canActivate (line :LineV, start :Int, pos :Int) = {
+      println(s"Alone $start - $pos :: $line")
+      line.indexOf(Chars.isNotWhitespace) == start && EOL.canActivate(line, start, pos)
+    }
+  }
+  case object EOL extends LineMode {
+    override def canActivate (line :LineV, start :Int, pos :Int) = {
+      println(s"EOL $start - $pos :: $line")
+      line.indexOf(Chars.isNotWhitespace, pos) == -1
+    }
+  }
+  case object Inline extends LineMode {
+    override def canActivate (line :LineV, start :Int, pos :Int) = true
+  }
+
   private val IncludeKey = "%include:"
   private val NameKey  = "%name:"
   private val KeysKey  = "%keys:"
   private val SynsKey  = "%syns:"
+  private val LineKey  = "%line:"
   private val AllSyntaxes = (_ :Syntax) => true
 
   // example .snip file
@@ -97,6 +125,7 @@ object Snippet {
   // %name: if else block
   // %keys: ife ifel
   // %syns: default
+  // %line: eol
   // if (${1:condition}) $2 else $3
   // (optional blank line)
   // %name: ...
@@ -128,9 +157,15 @@ object Snippet {
     var name = ""
     var triggers = Set[String]()
     var syntaxes = AllSyntaxes
+    var line :LineMode = Alone
     val bbuf = Seq.builder[String]()
 
     def parseSyntaxes (syns :String) = AllSyntaxes // TODO
+    def parseLine (line :String) :LineMode = line.toLowerCase match {
+      case "eol"    => EOL
+      case "inline" => Inline
+      case _ => Alone
+    }
 
     // first parse the parameters
     var cont = true ; while (cont && !ll.isEmpty) {
@@ -138,6 +173,7 @@ object Snippet {
       if (tline startsWith NameKey) name = getval(tline, NameKey)
       else if (tline startsWith KeysKey) triggers = Set.from(getval(tline, KeysKey).split(" "))
       else if (tline startsWith SynsKey) syntaxes = parseSyntaxes(getval(tline, SynsKey))
+      else if (tline startsWith LineKey) line = parseLine(getval(tline, LineKey))
       // else complain if line looks like %foo:?
       else cont = false
       if (cont) ll = ll.tail
@@ -156,7 +192,7 @@ object Snippet {
     // TODO: validate things?
 
     // finally create a snippet and pass it to the receiver fn
-    recv(Snippet(name, triggers, syntaxes, bbuf.build()))
+    recv(Snippet(name, triggers, syntaxes, line, bbuf.build()))
 
     ll
   }
