@@ -26,9 +26,26 @@ case class Snippet (
   /** The raw template for this snippet. */
   template :Seq[String]) {
 
+  /** A fn that decides whether a match should be aborted because it looks like the snippet has
+    * already been expanded. */
+  lazy val stop :(LineV, Int) => Boolean = {
+    val first = template.head
+    val start = first.indexOf("$") match {
+      case -1 => first
+      case nn => first.substring(0, nn)
+    }
+    val offs = triggers.map(start.indexOf).filter(_ >= 0)
+    if (offs.isEmpty) (line :LineV, start :Int) => false
+    else {
+      val m = scaled.Matcher.exact(start)
+      (line :LineV, start :Int) => offs.exists(off => start >= off && line.matches(m, start-off))
+    }
+  }
+
   /** Returns true if this snippet can be activated on `line` where the trigger matched at column
     * `start` and the point is at `pos`. */
-  def canActivate (line :LineV, start :Int, pos :Int) :Boolean = lmode.canActivate(line, start, pos)
+  def canActivate (line :LineV, start :Int, pos :Int) :Boolean =
+    lmode.canActivate(line, start, pos) && !stop(line, start)
 
   /** Inserts this snippet into `buffer` at `loc`. Returns the list of holes in the inserted
     * snippet. The final hole will be the "exit" point of the snippet (indicated by `$0` in the raw
