@@ -232,7 +232,7 @@ class SnippetMode (env :Env, major :MajorMode) extends MinorMode(env) {
   // changes were part of the executing fn, which is generally what we want for sensible undo
   private def afterEdit[U] (action : =>U) :Unit = {
     if (disp.curFn != null) (disp.didInvoke onEmit { action }).once()
-    else env.exec.runOnUI(window)(action)
+    else window.exec.runOnUI(action)
   }
 
   /** The currently active snippet, if any. */
