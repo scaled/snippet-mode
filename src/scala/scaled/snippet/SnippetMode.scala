@@ -327,8 +327,7 @@ class SnippetMode (env :Env, major :MajorMode) extends MinorMode(env) {
     case n => Loc(loc.row + snipLoc.row, snipLoc.col)
   }
 
-  import Workspace._
-  private def configScopeHistory = historyRing(wspace, "config-scope")
-  private def snippetNameHistory = historyRing(wspace, "snippet-name")
-  private def snippetTriggerHistory = historyRing(wspace, "snippet-trigger")
+  private def configScopeHistory = wspace.historyRing("config-scope")
+  private def snippetNameHistory = wspace.historyRing("snippet-name")
+  private def snippetTriggerHistory = wspace.historyRing("snippet-trigger")
 }
