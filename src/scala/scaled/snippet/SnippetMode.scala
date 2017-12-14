@@ -267,7 +267,10 @@ class SnippetMode (env :Env, major :MajorMode) extends MinorMode(env) {
 
   @Fn("""Moves to the previous hole in the active snippet.
          NOOPs if the point is already on the first hole in the snippet.""")
-  def prevSnippet () :Unit = reqActiveSnip.prevHole()
+  def prevSnippet () :Boolean = if (activeSnip == null) false else {
+    activeSnip.prevHole()
+    true
+  }
 
   @Fn("""Deactivates the active snippet.""")
   def deactivateSnippet () :Unit = if (activeSnip != null) {
