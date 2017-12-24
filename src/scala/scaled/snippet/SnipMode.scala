@@ -6,15 +6,16 @@ package scaled.snippet
 
 import scaled._
 import scaled.code.{CodeConfig, Commenter}
-import scaled.grammar.{Grammar, GrammarCodeMode, GrammarConfig}
+import scaled.grammar._
 import scaled.util.Resource
 
-object SnipConfig extends Config.Defs {
+@Plugin(tag="textmate-grammar")
+class HtmlGrammarPlugin extends GrammarPlugin {
   import CodeConfig._
-  import GrammarConfig._
 
-  // map TextMate grammar scopes to Scaled style definitions
-  val effacers = List(
+  override def grammars = Map("source.snip" -> "Snip.ndf")
+
+  override def effacers = List(
     effacer("comment.line", commentStyle),
     effacer("punctuation.line-cont", typeStyle),
     effacer("snippet.name", typeStyle),
@@ -24,12 +25,9 @@ object SnipConfig extends Config.Defs {
     effacer("keyword", keywordStyle)
   )
 
-  // map TextMate grammar scopes to Scaled syntax definitions
-  val syntaxers = List(
+  override def syntaxers = List(
     syntaxer("comment.line", Syntax.LineComment)
   )
-
-  val grammars = resource("Snip.ndf")(Grammar.parseNDFs)
 }
 
 @Major(name="snip", tags=Array("code", "project", "snip"), pats=Array(".*\\.snip"), desc="""
@@ -113,10 +111,7 @@ included as part of the previous snippet template.
 """)
 class SnipMode (env :Env) extends GrammarCodeMode(env) {
 
-  override def configDefs = SnipConfig :: super.configDefs
-  override def grammars = SnipConfig.grammars.get
-  override def effacers = SnipConfig.effacers
-  override def syntaxers = SnipConfig.syntaxers
+  override def langScope = "source.snip"
 
   override val commenter = new Commenter() {
     override def linePrefix = "#"
