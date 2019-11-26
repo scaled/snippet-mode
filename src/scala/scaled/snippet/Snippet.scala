@@ -71,7 +71,7 @@ case class Snippet (
         else {
           // if we have group(4) then it's a hole with default, otherwise its just a hole
           val defstr = m.group(4)
-          def add (str :String, len :Int) {
+          def add (str :String, len :Int) :Unit = {
             holes += (id, len, end + (0, lb.length))
             lb += str
           }

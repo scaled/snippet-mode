@@ -126,7 +126,7 @@ class SnipMode (env :Env) extends GrammarCodeMode(env) {
   }})
 
   @Fn("Inserts the stock snippets for the mode whose snippets are being edited.")
-  def insertStockSnippets () {
+  def insertStockSnippets () :Unit = {
     val name = buffer.store.name
     getClass.getClassLoader.getResource(s"snippets/$name") match {
       case null => abort(s"No stock snippets named '$name'.")

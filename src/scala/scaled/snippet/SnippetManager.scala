@@ -15,8 +15,8 @@ class SnippetManager (msvc :MetaService, editor :Editor)
   private val userSnipCache = Mutable.cacheMap[(String,Path),Seq[Snippet]]((readDirSnips _).tupled)
   private val SnippetsDir = "Snippets"
 
-  override def didStartup () {}
-  override def willShutdown () {}
+  override def didStartup () :Unit = {}
+  override def willShutdown () :Unit = {}
 
   override def resolveSnippets (mode :String, scope :Config.Scope) = {
     val snips = Seq.builder[Snippet]()
@@ -30,7 +30,7 @@ class SnippetManager (msvc :MetaService, editor :Editor)
     snips.build()
   }
 
-  override def flushSnippets (mode :String, root :Path) {
+  override def flushSnippets (mode :String, root :Path) :Unit = {
     userSnipCache.invalidate((mode, root.resolve(SnippetsDir)))
   }
 

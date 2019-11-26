@@ -23,7 +23,7 @@ class SnippetTest {
     ""
   ) ++ classSnip
 
-  @Test def testParse () {
+  @Test def testParse () :Unit = {
     Snippet.parseSnippet(classSnip, println(_))
   }
 }

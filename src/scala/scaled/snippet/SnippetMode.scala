@@ -64,7 +64,7 @@ class SnippetMode (env :Env, major :MajorMode) extends MinorMode(env) {
         * whether or not the point is currently "in" this hole. */
       def containsP (loc :Loc) = (region.start <= loc) && (region.end >= loc)
 
-      def init () {
+      def init () :Unit = {
         // if we have a default value and mirrors, stuff our default value into our mirrors
         if (isDefault && !amirrors.isEmpty) {
           amirrors foreach { _.bindOut }
@@ -73,7 +73,7 @@ class SnippetMode (env :Env, major :MajorMode) extends MinorMode(env) {
         }
       }
 
-      def activate () {
+      def activate () :Unit = {
         // while we're active, our regions bind out (they expand due to edits on their edges)
         region.bindOut
         buffer.addTag(activeHoleStyle, region)
@@ -81,7 +81,7 @@ class SnippetMode (env :Env, major :MajorMode) extends MinorMode(env) {
         amirrors foreach { buffer.addTag(activeHoleStyle, _) }
         moveTo()
       }
-      def deactivate () {
+      def deactivate () :Unit = {
         // while we're inactive, our regions bind in (no expand due to edits on edges)
         region.bindIn
         amirrors foreach { _.bindIn }
@@ -89,7 +89,7 @@ class SnippetMode (env :Env, major :MajorMode) extends MinorMode(env) {
         amirrors foreach { buffer.removeTag(activeHoleStyle, _) }
       }
 
-      def moveTo () {
+      def moveTo () :Unit = {
         if (!containsP(view.point())) {
           view.point() = if (isDefault) region.start else region.end
           // if we're in column zero, automatically indent
@@ -97,7 +97,7 @@ class SnippetMode (env :Env, major :MajorMode) extends MinorMode(env) {
         }
       }
 
-      def updateMirrors () {
+      def updateMirrors () :Unit = {
         val current = buffer.region(region)
         disableOnEdit = true
         try amirrors foreach { mr => buffer.replace(mr, current) }
@@ -140,7 +140,7 @@ class SnippetMode (env :Env, major :MajorMode) extends MinorMode(env) {
     toClose += view.point onValue checkSwitchHole
     activateHole(0) // this will deactivate this snippet if hole 0 is the exit hole
 
-    def deactivate () {
+    def deactivate () :Unit = {
       // println(s"deactivating $this")
       toClose.close()
       activeHole = null
@@ -153,12 +153,12 @@ class SnippetMode (env :Env, major :MajorMode) extends MinorMode(env) {
       else activateHole(aholes.indexOf(activeHole)+1)
     }
 
-    def prevHole () {
+    def prevHole () :Unit = {
       val hidx = aholes.indexOf(activeHole)
       if (hidx > 0) activeHole = aholes(hidx-1)
     }
 
-    private def activateHole (hidx :Int) {
+    private def activateHole (hidx :Int) :Unit = {
       if (hidx < aholes.size-1) activeHole = aholes(hidx)
       // if we're on the penultimate hole, then the next hole is the exit and deactivates us
       else {
@@ -279,7 +279,7 @@ class SnippetMode (env :Env, major :MajorMode) extends MinorMode(env) {
   }
 
   @Fn("Visits a snippets definition file.")
-  def editSnippets () {
+  def editSnippets () :Unit = {
     window.mini.read("Mode:", major.name, snippetNameHistory, Completer.none) onSuccess { name =>
       val scopes = env.configScope.toList ; val comp = Completer.from(scopes)(_.name)
       window.mini.read("Scope:", scopes.head.name, configScopeHistory, comp) onSuccess { scope =>
@@ -297,7 +297,7 @@ class SnippetMode (env :Env, major :MajorMode) extends MinorMode(env) {
   }
 
   @Fn("Displays the template and other info for a particular snippet.")
-  def describeSnippet () {
+  def describeSnippet () :Unit = {
     val comp = Completer.from(trigs)(_.trig)
     window.mini.read("Trigger:", "", snippetTriggerHistory, comp) onSuccess { trig =>
       val snip = trig.snip
@@ -308,7 +308,7 @@ class SnippetMode (env :Env, major :MajorMode) extends MinorMode(env) {
     }
   }
 
-  private def startSnippet (snip :Snippet, start :Loc, pos :Loc) {
+  private def startSnippet (snip :Snippet, start :Loc, pos :Loc) :Unit = {
     deactivateSnippet()                           // deactivate any previous snippet
     buffer.delete(start, pos)                     // delete the trigger
     val (holes, end) = snip.insert(buffer, start) // insert the snippet text
